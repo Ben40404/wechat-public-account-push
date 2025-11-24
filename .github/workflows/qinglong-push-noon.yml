@@ -49,7 +49,8 @@ try:
         print('❌ 错误：USER_INFO 缺失或为空'); sys.exit(1)
     for i, user in enumerate(config['USER_INFO']):
         if 'useTemplateId' not in user:
-            print(f'❌ 错误：用户 {i+1} 缺少 useTemplateId'); sys.exit(1)
+            print(f'❌ 错误：用户 {i+1} 缺少 useTemplateId')
+            sys.exit(1)
         has_wechat = 'id' in user and 'wechatTemplateId' in user
         has_pushdeer = 'pushDeerKey' in user
         if not has_wechat and not has_pushdeer:
