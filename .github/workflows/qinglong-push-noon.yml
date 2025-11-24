@@ -1,31 +1,84 @@
-name: wechat-push-noon
+# 青龙面板微信推送自动化工作流 - 午安
+name: qinglong-wechat-push-noon
 
 on:
-  schedule:
-    # 比如每天中国时间 12:30
-    # 12:30 CST = 04:30 UTC
-    - cron: '30 4 * * *'
   workflow_dispatch:
+  schedule:
+    # 每天 UTC 04:30 运行, 即北京时间 12:30
+    - cron: '30 6 * * *'
 
 jobs:
-  push:
+  validate-and-push:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        node-version: [16.x]
+
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    - name: 检出代码
+      uses: actions/checkout@v3
+      with:
+        ref: 'master'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+    - name: 设置 Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
 
-      - name: Install dependencies
-        run: |
-          npm init -y
-          npm install axios dayjs dotenv
+    - name: 验证必需的环境变量
+      env:
+        ALL_CONFIG: ${{ secrets.ALL_CONFIG_NOON || vars.ALL_CONFIG_NOON }}
+      run: |
+        echo "🔍 开始验证 ALL_CONFIG_NOON..."
+        if [ -z "${ALL_CONFIG}" ]; then
+          echo "❌ 错误：ALL_CONFIG_NOON 未配置"
+          exit 1
+        fi
+        echo "${ALL_CONFIG}" > /tmp/config.json
+        python3 - << 'PYCODE'
+import json, sys
+try:
+    with open('/tmp/config.json','r',encoding='utf-8') as f:
+        config = json.load(f)
+    if 'TEMPLATE_CONFIG' not in config or not config['TEMPLATE_CONFIG']:
+        print('❌ 错误：TEMPLATE_CONFIG 缺失或为空'); sys.exit(1)
+    if 'USER_INFO' not in config or not config['USER_INFO']:
+        print('❌ 错误：USER_INFO 缺失或为空'); sys.exit(1)
+    for i, user in enumerate(config['USER_INFO']):
+        if 'useTemplateId' not in user:
+            print(f'❌ 错误：用户 {i+1} 缺少 useTemplateId'); sys.exit(1)
+        has_wechat = 'id' in user and 'wechatTemplateId' in user
+        has_pushdeer = 'pushDeerKey' in user
+        if not has_wechat and not has_pushdeer:
+            print(f'❌ 错误：用户 {i+1} 未配置推送渠道'); sys.exit(1)
+    print('✅ ALL_CONFIG_NOON 验证通过')
+except Exception as e:
+    print(f'❌ 错误：验证异常 - {e}'); sys.exit(1)
+PYCODE
+        rm -f /tmp/config.json
 
-      - name: Run qinglong-push (noon)
-        env:
-          ALL_CONFIG: ${{ secrets.ALL_CONFIG_NOON }}
-        run: node qinglong-push.js
+    - name: 安装青龙脚本依赖
+      working-directory: ./qinglong
+      run: |
+        echo "📦 正在安装青龙脚本依赖..."
+        npm install
+        echo "✅ 依赖安装完成"
+
+    - name: 运行青龙推送脚本
+      working-directory: ./qinglong
+      env:
+        ALL_CONFIG: ${{ secrets.ALL_CONFIG_NOON || vars.ALL_CONFIG_NOON }}
+      run: |
+        echo "🚀 开始运行青龙推送脚本(午安)..."
+        node qinglong-push.js
+        echo "✅ 推送任务完成"
+
+    - name: 运行结果通知
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ 午安推送任务执行成功！"
+        else
+          echo "❌ 午安推送任务执行失败，请查看上方日志排查"
