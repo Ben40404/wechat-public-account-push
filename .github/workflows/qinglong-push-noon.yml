@@ -1,0 +1,31 @@
+name: wechat-push-noon
+
+on:
+  schedule:
+    # 比如每天中国时间 12:30
+    # 12:30 CST = 04:30 UTC
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install axios dayjs dotenv
+
+      - name: Run qinglong-push (noon)
+        env:
+          ALL_CONFIG: ${{ secrets.ALL_CONFIG_NOON }}
+        run: node qinglong-push.js
