@@ -37,8 +37,9 @@ jobs:
           exit 1
         fi
         echo "${ALL_CONFIG}" > /tmp/config.json
-        python3 - << 'PYCODE'
-import json, sys
+        python3 -c "
+        import json
+        import sys
 try:
     with open('/tmp/config.json','r',encoding='utf-8') as f:
         config = json.load(f)
